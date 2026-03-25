@@ -1,0 +1,132 @@
+package com.Notify.Notification_Management.service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.Notify.Notification_Management.client.PatientServiceClient;
+import com.Notify.Notification_Management.dto.NotificationDto;
+import com.Notify.Notification_Management.model.Notification;
+import com.Notify.Notification_Management.repository.NotificationRepository;
+
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class NotificationService {
+
+    private final NotificationRepository notificationRepository;
+    private final PatientServiceClient patientServiceClient;
+
+    public List<Notification> getUserNotifications(String userId, String userType) {
+        return notificationRepository.findByRecipientIdAndRecipientTypeOrderByCreatedAtDesc(userId, userType);
+    }
+
+    public List<Notification> getUnreadNotifications(String userId, String userType) {
+        return notificationRepository.findByRecipientIdAndRecipientTypeAndIsReadFalseOrderByCreatedAtDesc(userId, userType);
+    }
+
+    public Long getUnreadCount(String userId, String userType) {
+        return notificationRepository.countUnreadNotifications(userId, userType);
+    }
+
+    public Notification getNotificationById(Long id) {
+        return notificationRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Notification not found with id: " + id));
+    }
+
+    public List<Notification> getAllNotifications() {
+        return notificationRepository.findAll();
+    }
+
+    @Transactional
+    public Notification updateNotification(Long id, NotificationDto notificationDto) {
+        Notification notification = getNotificationById(id);
+        
+        if (notificationDto.getRecipientId() != null) {
+            notification.setRecipientId(notificationDto.getRecipientId());
+        }
+        if (notificationDto.getRecipientType() != null) {
+            notification.setRecipientType(notificationDto.getRecipientType());
+        }
+        if (notificationDto.getMessage() != null) {
+            notification.setMessage(notificationDto.getMessage());
+        }
+        if (notificationDto.getNotificationType() != null) {
+            notification.setNotificationType(notificationDto.getNotificationType());
+        }
+        if (notificationDto.getIsRead() != null) {
+            notification.setIsRead(notificationDto.getIsRead());
+        }
+        
+        return notificationRepository.save(notification);
+    }
+
+    @Transactional
+    public void deleteNotification(Long id) {
+        if (!notificationRepository.existsById(id)) {
+            throw new RuntimeException("Notification not found with id: " + id);
+        }
+        notificationRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void deleteAllUserNotifications(String userId, String userType) {
+        List<Notification> notifications = notificationRepository.findByRecipientIdAndRecipientTypeOrderByCreatedAtDesc(userId, userType);
+        notificationRepository.deleteAll(notifications);
+    }
+
+    @Transactional
+    public void deleteReadNotifications(String userId, String userType) {
+        List<Notification> readNotifications = notificationRepository.findByRecipientIdAndRecipientTypeOrderByCreatedAtDesc(userId, userType)
+                .stream()
+                .filter(Notification::getIsRead)
+                .collect(Collectors.toList());
+        notificationRepository.deleteAll(readNotifications);
+    }
+
+    @Transactional
+    public Notification markAsRead(Long notificationId) {
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new RuntimeException("Notification not found"));
+        notification.setIsRead(true);
+        return notificationRepository.save(notification);
+    }
+
+    @Transactional
+    public void markAllAsRead(String userId, String userType) {
+        List<Notification> unreadNotifications = getUnreadNotifications(userId, userType);
+        unreadNotifications.forEach(notification -> notification.setIsRead(true));
+        notificationRepository.saveAll(unreadNotifications);
+    }
+
+    @Transactional
+    public Notification createNotification(String recipientId, String recipientType, String message, String notificationType) {
+        Notification notification = new Notification(recipientId, recipientType, message, notificationType);
+        return notificationRepository.save(notification);
+    }
+
+    public void createAppointmentCreatedNotification(String patientId, String doctorId, LocalDateTime appointmentTime) {
+        String patientMessage = String.format("Your appointment has been scheduled for %s", appointmentTime);
+        String doctorMessage = String.format("New appointment scheduled with patient for %s", appointmentTime);
+        
+        createNotification(patientId, "PATIENT", patientMessage, "APPOINTMENT_CREATED");
+        createNotification(doctorId, "DOCTOR", doctorMessage, "APPOINTMENT_CREATED");
+    }
+
+    public void createAppointmentApprovedNotification(String patientId, LocalDateTime appointmentTime) {
+        String message = String.format("Your appointment for %s has been approved by the doctor", appointmentTime);
+        createNotification(patientId, "PATIENT", message, "APPOINTMENT_APPROVED");
+    }
+
+    public boolean validateUserToken(String token) {
+        return patientServiceClient.validateToken(token);
+    }
+
+    public String extractUsernameFromToken(String token) {
+        return patientServiceClient.extractUsernameFromToken(token);
+    }
+}
