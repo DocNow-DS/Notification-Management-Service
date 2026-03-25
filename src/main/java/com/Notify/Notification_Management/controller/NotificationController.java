@@ -63,25 +63,17 @@ public class NotificationController {
 
         try {
             switch (request.getNotificationType()) {
-                case "APPOINTMENT_CREATED":
-                    notificationService.createAppointmentCreatedNotification(
-                        request.getPatientId(), 
-                        request.getDoctorId(), 
-                        request.getAppointmentTime()
-                    );
-                    break;
                 case "APPOINTMENT_APPROVED":
                     notificationService.createAppointmentApprovedNotification(
-                        request.getPatientId(), 
-                        request.getAppointmentTime()
+                        request.getPatientId()
                     );
                     break;
                 default:
                     return ResponseEntity.badRequest().body("Invalid notification type");
             }
             
-            log.info("Created {} notification for patient {} and doctor {}", 
-                request.getNotificationType(), request.getPatientId(), request.getDoctorId());
+            log.info("Created {} notification for patient {} for appointment {}", 
+                request.getNotificationType(), request.getPatientId(), request.getAppointmentId());
             
             return ResponseEntity.ok("Notification created successfully");
         } catch (Exception e) {
@@ -95,7 +87,7 @@ public class NotificationController {
 
     @GetMapping("/{id}")
     public ResponseEntity<NotificationDto> getNotificationById(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         
         if (authorization != null && !notificationService.validateUserToken(authorization.replace("Bearer ", ""))) {
@@ -181,7 +173,7 @@ public class NotificationController {
 
     @PutMapping("/{notificationId}/read")
     public ResponseEntity<NotificationDto> markAsRead(
-            @PathVariable Long notificationId,
+            @PathVariable String notificationId,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         
         if (authorization != null && !notificationService.validateUserToken(authorization.replace("Bearer ", ""))) {
@@ -199,7 +191,7 @@ public class NotificationController {
 
     @PutMapping("/{id}")
     public ResponseEntity<NotificationDto> updateNotification(
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody NotificationDto notificationDto,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         
@@ -235,7 +227,7 @@ public class NotificationController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteNotification(
-            @PathVariable Long id,
+            @PathVariable String id,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         
         if (authorization != null && !notificationService.validateUserToken(authorization.replace("Bearer ", ""))) {

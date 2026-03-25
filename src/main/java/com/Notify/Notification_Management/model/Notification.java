@@ -2,35 +2,35 @@ package com.Notify.Notification_Management.model;
 
 import java.time.LocalDateTime;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
-@Entity
-@Table(name = "notifications")
+@Document(collection = "notifications")
 public class Notification {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private String id;
 
-    @Column(nullable = false)
+    @Field
     private String recipientId;
 
-    @Column(nullable = false)
+    @Field
     private String recipientType; // PATIENT, DOCTOR
 
-    @Column(nullable = false)
+    @Field
     private String message;
 
-    @Column(nullable = false)
+    @Field
     private String notificationType; // APPOINTMENT_CREATED, APPOINTMENT_APPROVED
 
-    @Column(nullable = false)
+    @Field
     private Boolean isRead = false;
 
-    @Column(nullable = false)
+    @Field
     private LocalDateTime createdAt;
 
-    @Column
+    @Field
     private LocalDateTime readAt;
 
     public Notification() {
@@ -45,11 +45,11 @@ public class Notification {
         this.notificationType = notificationType;
     }
 
-    public Long getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(String id) {
         this.id = id;
     }
 

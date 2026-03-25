@@ -33,7 +33,7 @@ public class NotificationService {
         return notificationRepository.countUnreadNotifications(userId, userType);
     }
 
-    public Notification getNotificationById(Long id) {
+    public Notification getNotificationById(String id) {
         return notificationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Notification not found with id: " + id));
     }
@@ -43,7 +43,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public Notification updateNotification(Long id, NotificationDto notificationDto) {
+    public Notification updateNotification(String id, NotificationDto notificationDto) {
         Notification notification = getNotificationById(id);
         
         if (notificationDto.getRecipientId() != null) {
@@ -66,7 +66,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public void deleteNotification(Long id) {
+    public void deleteNotification(String id) {
         if (!notificationRepository.existsById(id)) {
             throw new RuntimeException("Notification not found with id: " + id);
         }
@@ -89,7 +89,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public Notification markAsRead(Long notificationId) {
+    public Notification markAsRead(String notificationId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
         notification.setIsRead(true);
@@ -117,8 +117,8 @@ public class NotificationService {
         createNotification(doctorId, "DOCTOR", doctorMessage, "APPOINTMENT_CREATED");
     }
 
-    public void createAppointmentApprovedNotification(String patientId, LocalDateTime appointmentTime) {
-        String message = String.format("Your appointment for %s has been approved by the doctor", appointmentTime);
+    public void createAppointmentApprovedNotification(String patientId) {
+        String message = "Your appointment has been approved by the doctor";
         createNotification(patientId, "PATIENT", message, "APPOINTMENT_APPROVED");
     }
 
