@@ -65,7 +65,9 @@ public class NotificationController {
             switch (request.getNotificationType()) {
                 case "APPOINTMENT_APPROVED":
                     notificationService.createAppointmentApprovedNotification(
-                        request.getPatientId()
+                        request.getPatientId(),
+                        request.getAppointmentId(),
+                        request.getStartTime()
                     );
                     break;
                 default:

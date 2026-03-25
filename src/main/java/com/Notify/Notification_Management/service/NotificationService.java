@@ -117,9 +117,11 @@ public class NotificationService {
         createNotification(doctorId, "DOCTOR", doctorMessage, "APPOINTMENT_CREATED");
     }
 
-    public void createAppointmentApprovedNotification(String patientId) {
-        String message = "Your appointment has been approved by the doctor";
+    public void createAppointmentApprovedNotification(String patientId, String appointmentId, String startTime) {
+        String message = String.format("Your appointment on %s (ID: %s) has been approved by the doctor", 
+            startTime != null ? startTime : "scheduled time", appointmentId);
         createNotification(patientId, "PATIENT", message, "APPOINTMENT_APPROVED");
+        System.out.println("LOG: Created APPOINTMENT_APPROVED notification for patient: " + patientId);
     }
 
     public boolean validateUserToken(String token) {

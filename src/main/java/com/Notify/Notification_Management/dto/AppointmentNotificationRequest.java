@@ -18,4 +18,6 @@ public class AppointmentNotificationRequest {
     
     @NotBlank(message = "Notification type is required")
     private String notificationType; // APPOINTMENT_CREATED, APPOINTMENT_APPROVED
+    
+    private String startTime;
 }
