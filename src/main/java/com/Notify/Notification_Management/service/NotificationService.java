@@ -13,13 +13,16 @@ import com.Notify.Notification_Management.model.Notification;
 import com.Notify.Notification_Management.repository.NotificationRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final PatientServiceClient patientServiceClient;
+    private final EmailService emailService;
 
     public List<Notification> getUserNotifications(String userId, String userType) {
         return notificationRepository.findByRecipientIdAndRecipientTypeOrderByCreatedAtDesc(userId, userType);
@@ -117,11 +120,19 @@ public class NotificationService {
         createNotification(doctorId, "DOCTOR", doctorMessage, "APPOINTMENT_CREATED");
     }
 
-    public void createAppointmentApprovedNotification(String patientId, String appointmentId, String startTime) {
+    public void createAppointmentApprovedNotification(String patientId, String appointmentId, String startTime, String token) {
         String message = String.format("Your appointment on %s (ID: %s) has been approved by the doctor", 
             startTime != null ? startTime : "scheduled time", appointmentId);
         createNotification(patientId, "PATIENT", message, "APPOINTMENT_APPROVED");
-        System.out.println("LOG: Created APPOINTMENT_APPROVED notification for patient: " + patientId);
+        
+        log.info("Created APPOINTMENT_APPROVED notification for patient: {}", patientId);
+        
+        // Send email notification
+        try {
+            emailService.sendAppointmentApprovedEmail(patientId, appointmentId, startTime, token);
+        } catch (Exception e) {
+            log.error("Failed to send appointment approved email to patient {}: {}", patientId, e.getMessage());
+        }
     }
 
     public boolean validateUserToken(String token) {

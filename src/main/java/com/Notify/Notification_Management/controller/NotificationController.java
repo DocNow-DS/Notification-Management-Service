@@ -57,17 +57,24 @@ public class NotificationController {
             @Valid @RequestBody AppointmentNotificationRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         
-        if (authorization != null && !notificationService.validateUserToken(authorization.replace("Bearer ", ""))) {
+        // Authorization is required for appointment notifications to access patient service
+        if (authorization == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authorization header is required for appointment notifications");
+        }
+        
+        if (!notificationService.validateUserToken(authorization.replace("Bearer ", ""))) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
         try {
             switch (request.getNotificationType()) {
                 case "APPOINTMENT_APPROVED":
+                    String token = authorization.replace("Bearer ", "");
                     notificationService.createAppointmentApprovedNotification(
                         request.getPatientId(),
                         request.getAppointmentId(),
-                        request.getStartTime()
+                        request.getStartTime(),
+                        token
                     );
                     break;
                 default:

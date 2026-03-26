@@ -58,4 +58,34 @@ public class PatientServiceClient {
             return null;
         }
     }
+
+    public Object getPatientById(String patientId, String token) {
+        try {
+            String url = patientServiceBaseUrl + "/api/patient/" + patientId;
+            System.out.println("DEBUG: Calling patient service at URL: " + url);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Content-Type", "application/json");
+            if (token != null && !token.isEmpty()) {
+                headers.set("Authorization", "Bearer " + token);
+            }
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<Object> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                entity,
+                Object.class
+            );
+            
+            System.out.println("DEBUG: Patient service response status: " + response.getStatusCode());
+            System.out.println("DEBUG: Patient service response body: " + response.getBody());
+            
+            return response.getStatusCode().is2xxSuccessful() ? response.getBody() : null;
+        } catch (Exception e) {
+            System.out.println("DEBUG: Error calling patient service: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
 }
