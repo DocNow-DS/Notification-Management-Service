@@ -129,13 +129,19 @@ public class EmailService {
         try {
             log.debug("Attempting to extract email from patient object of type: {}", patient.getClass().getName());
 
-            // Using reflection to get patient email safely
+            // Handle LinkedHashMap from RestTemplate
+            if (patient instanceof java.util.Map) {
+                java.util.Map<?, ?> map = (java.util.Map<?, ?>) patient;
+                Object email = map.get("email");
+                log.debug("Extracted email from map: {}", email);
+                return email != null ? email.toString() : null;
+            }
+
+            // Fallback to reflection for actual objects
             if (patient.getClass().getMethod("getEmail") != null) {
                 String email = (String) patient.getClass().getMethod("getEmail").invoke(patient);
-                log.debug("Extracted email: {}", email);
+                log.debug("Extracted email via reflection: {}", email);
                 return email;
-            } else {
-                log.warn("getEmail method not found on patient object");
             }
         } catch (Exception e) {
             log.error("Could not extract patient email: {}", e.getMessage(), e);
@@ -145,7 +151,19 @@ public class EmailService {
 
     private String getPatientName(Object patient) {
         try {
-            // Using reflection to get patient name safely
+            // Handle LinkedHashMap from RestTemplate
+            if (patient instanceof java.util.Map) {
+                java.util.Map<?, ?> map = (java.util.Map<?, ?>) patient;
+                Object name = map.get("name");
+                if (name != null && !name.toString().isEmpty() && !"Unknown".equals(name)) {
+                    return name.toString();
+                }
+                // Fallback to username if name is not set
+                Object username = map.get("username");
+                return username != null ? username.toString() : "Patient";
+            }
+
+            // Fallback to reflection for actual objects
             if (patient.getClass().getMethod("getFirstName") != null &&
                     patient.getClass().getMethod("getLastName") != null) {
                 String firstName = (String) patient.getClass().getMethod("getFirstName").invoke(patient);

@@ -61,7 +61,16 @@ public class PatientServiceClient {
 
     public Object getPatientById(String patientId, String token) {
         try {
-            String url = patientServiceBaseUrl + "/api/patient/" + patientId;
+            // Check if patientId looks like a MongoDB ObjectId (24 hex characters)
+            // or a username (contains non-hex characters or wrong length)
+            String url;
+            if (patientId != null && patientId.matches("^[0-9a-fA-F]{24}$")) {
+                // It's a valid ObjectId format
+                url = patientServiceBaseUrl + "/api/patient/" + patientId;
+            } else {
+                // It's likely a username
+                url = patientServiceBaseUrl + "/api/patient/username/" + patientId;
+            }
             System.out.println("DEBUG: Calling patient service at URL: " + url);
             
             HttpHeaders headers = new HttpHeaders();
