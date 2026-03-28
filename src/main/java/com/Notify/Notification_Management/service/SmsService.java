@@ -1,19 +1,15 @@
 package com.Notify.Notification_Management.service;
 
 import com.Notify.Notification_Management.client.PatientServiceClient;
+import com.twilio.Twilio;
+import com.twilio.rest.api.v2010.account.Message;
+import com.twilio.type.PhoneNumber;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import jakarta.annotation.PostConstruct;
 
 @Service
 @RequiredArgsConstructor
@@ -21,16 +17,25 @@ import java.util.Map;
 public class SmsService {
 
     private final PatientServiceClient patientServiceClient;
-    private final RestTemplate restTemplate = new RestTemplate();
 
-    @Value("${infobip.api.key}")
-    private String apiKey;
+    @Value("${twilio.account.sid}")
+    private String accountSid;
 
-    @Value("${infobip.base.url}")
-    private String baseUrl;
+    @Value("${twilio.auth.token}")
+    private String authToken;
 
-    @Value("${infobip.sender.id:HealthCare}")
-    private String senderId;
+    @Value("${twilio.phone.number}")
+    private String twilioPhoneNumber;
+
+    @PostConstruct
+    public void init() {
+        if (accountSid != null && !accountSid.isEmpty() && authToken != null && !authToken.isEmpty()) {
+            Twilio.init(accountSid, authToken);
+            log.info("Twilio initialized successfully");
+        } else {
+            log.warn("Twilio credentials not configured. SMS notifications will be disabled.");
+        }
+    }
 
     public void sendAppointmentApprovedSms(String patientId, String appointmentId, String startTime, String token) {
         try {
@@ -88,31 +93,20 @@ public class SmsService {
         }
     }
 
-    private void sendSms(String phoneNumber, String message) {
+    private void sendSms(String phoneNumber, String messageText) {
         try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "App " + apiKey);
-            headers.set("Content-Type", "application/json");
+            if (accountSid == null || accountSid.isEmpty() || authToken == null || authToken.isEmpty()) {
+                log.warn("Twilio not configured. Would have sent SMS to {}: {}", phoneNumber, messageText);
+                return;
+            }
 
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("from", senderId);
+            Message message = Message.creator(
+                    new PhoneNumber(phoneNumber),
+                    new PhoneNumber(twilioPhoneNumber),
+                    messageText
+            ).create();
 
-            Map<String, Object> destination = new HashMap<>();
-            destination.put("to", phoneNumber);
-
-            Map<String, Object> messageMap = new HashMap<>();
-            messageMap.put("destinations", List.of(destination));
-            messageMap.put("text", message);
-            messageMap.put("from", senderId);
-
-            payload.put("messages", List.of(messageMap));
-
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
-
-            String url = baseUrl + "/sms/2/text/advanced";
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
-
-            log.info("SMS sent successfully. Response status: {}, body: {}", response.getStatusCode(), response.getBody());
+            log.info("SMS sent successfully. SID: {}, Status: {}", message.getSid(), message.getStatus());
         } catch (Exception e) {
             log.error("Failed to send SMS to {}: {}", phoneNumber, e.getMessage(), e);
             throw new RuntimeException("Failed to send SMS", e);
