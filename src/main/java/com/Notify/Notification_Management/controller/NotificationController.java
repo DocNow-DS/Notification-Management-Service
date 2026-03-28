@@ -77,6 +77,16 @@ public class NotificationController {
                         token
                     );
                     break;
+                case "APPOINTMENT_DECLINED":
+                    String declineToken = authorization.replace("Bearer ", "");
+                    notificationService.createAppointmentDeclinedNotification(
+                        request.getPatientId(),
+                        request.getAppointmentId(),
+                        request.getStartTime(),
+                        request.getReason(),
+                        declineToken
+                    );
+                    break;
                 default:
                     return ResponseEntity.badRequest().body("Invalid notification type");
             }

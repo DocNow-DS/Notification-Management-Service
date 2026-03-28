@@ -23,6 +23,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final PatientServiceClient patientServiceClient;
     private final EmailService emailService;
+    private final SmsService smsService;
 
     public List<Notification> getUserNotifications(String userId, String userType) {
         return notificationRepository.findByRecipientIdAndRecipientTypeOrderByCreatedAtDesc(userId, userType);
@@ -132,6 +133,35 @@ public class NotificationService {
             emailService.sendAppointmentApprovedEmail(patientId, appointmentId, startTime, token);
         } catch (Exception e) {
             log.error("Failed to send appointment approved email to patient {}: {}", patientId, e.getMessage());
+        }
+        
+        // Send SMS notification
+        try {
+            smsService.sendAppointmentApprovedSms(patientId, appointmentId, startTime, token);
+        } catch (Exception e) {
+            log.error("Failed to send appointment approved SMS to patient {}: {}", patientId, e.getMessage());
+        }
+    }
+
+    public void createAppointmentDeclinedNotification(String patientId, String appointmentId, String startTime, String reason, String token) {
+        String message = String.format("Your appointment on %s (ID: %s) has been declined by the doctor. Reason: %s", 
+            startTime != null ? startTime : "scheduled time", appointmentId, reason != null ? reason : "Not specified");
+        createNotification(patientId, "PATIENT", message, "APPOINTMENT_DECLINED");
+        
+        log.info("Created APPOINTMENT_DECLINED notification for patient: {}", patientId);
+        
+        // Send email notification (to be implemented in EmailService if needed)
+        // try {
+        //     emailService.sendAppointmentDeclinedEmail(patientId, appointmentId, startTime, reason, token);
+        // } catch (Exception e) {
+        //     log.error("Failed to send appointment declined email to patient {}: {}", patientId, e.getMessage());
+        // }
+        
+        // Send SMS notification
+        try {
+            smsService.sendAppointmentDeclinedSms(patientId, appointmentId, startTime, reason, token);
+        } catch (Exception e) {
+            log.error("Failed to send appointment declined SMS to patient {}: {}", patientId, e.getMessage());
         }
     }
 

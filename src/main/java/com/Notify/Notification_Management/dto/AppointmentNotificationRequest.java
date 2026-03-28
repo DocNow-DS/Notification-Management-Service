@@ -17,7 +17,9 @@ public class AppointmentNotificationRequest {
     private String appointmentId;
     
     @NotBlank(message = "Notification type is required")
-    private String notificationType; // APPOINTMENT_CREATED, APPOINTMENT_APPROVED
+    private String notificationType; // APPOINTMENT_CREATED, APPOINTMENT_APPROVED, APPOINTMENT_DECLINED
     
     private String startTime;
+    
+    private String reason; // For APPOINTMENT_DECLINED notifications
 }
