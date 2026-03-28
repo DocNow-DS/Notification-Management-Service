@@ -13,13 +13,16 @@ import com.Notify.Notification_Management.model.Notification;
 import com.Notify.Notification_Management.repository.NotificationRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final PatientServiceClient patientServiceClient;
+    private final EmailService emailService;
 
     public List<Notification> getUserNotifications(String userId, String userType) {
         return notificationRepository.findByRecipientIdAndRecipientTypeOrderByCreatedAtDesc(userId, userType);
@@ -33,7 +36,7 @@ public class NotificationService {
         return notificationRepository.countUnreadNotifications(userId, userType);
     }
 
-    public Notification getNotificationById(Long id) {
+    public Notification getNotificationById(String id) {
         return notificationRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Notification not found with id: " + id));
     }
@@ -43,7 +46,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public Notification updateNotification(Long id, NotificationDto notificationDto) {
+    public Notification updateNotification(String id, NotificationDto notificationDto) {
         Notification notification = getNotificationById(id);
         
         if (notificationDto.getRecipientId() != null) {
@@ -66,7 +69,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public void deleteNotification(Long id) {
+    public void deleteNotification(String id) {
         if (!notificationRepository.existsById(id)) {
             throw new RuntimeException("Notification not found with id: " + id);
         }
@@ -89,7 +92,7 @@ public class NotificationService {
     }
 
     @Transactional
-    public Notification markAsRead(Long notificationId) {
+    public Notification markAsRead(String notificationId) {
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
         notification.setIsRead(true);
@@ -117,9 +120,19 @@ public class NotificationService {
         createNotification(doctorId, "DOCTOR", doctorMessage, "APPOINTMENT_CREATED");
     }
 
-    public void createAppointmentApprovedNotification(String patientId, LocalDateTime appointmentTime) {
-        String message = String.format("Your appointment for %s has been approved by the doctor", appointmentTime);
+    public void createAppointmentApprovedNotification(String patientId, String appointmentId, String startTime, String token) {
+        String message = String.format("Your appointment on %s (ID: %s) has been approved by the doctor", 
+            startTime != null ? startTime : "scheduled time", appointmentId);
         createNotification(patientId, "PATIENT", message, "APPOINTMENT_APPROVED");
+        
+        log.info("Created APPOINTMENT_APPROVED notification for patient: {}", patientId);
+        
+        // Send email notification
+        try {
+            emailService.sendAppointmentApprovedEmail(patientId, appointmentId, startTime, token);
+        } catch (Exception e) {
+            log.error("Failed to send appointment approved email to patient {}: {}", patientId, e.getMessage());
+        }
     }
 
     public boolean validateUserToken(String token) {

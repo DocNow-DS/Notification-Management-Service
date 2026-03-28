@@ -58,4 +58,43 @@ public class PatientServiceClient {
             return null;
         }
     }
+
+    public Object getPatientById(String patientId, String token) {
+        try {
+            // Check if patientId looks like a MongoDB ObjectId (24 hex characters)
+            // or a username (contains non-hex characters or wrong length)
+            String url;
+            if (patientId != null && patientId.matches("^[0-9a-fA-F]{24}$")) {
+                // It's a valid ObjectId format
+                url = patientServiceBaseUrl + "/api/patient/" + patientId;
+            } else {
+                // It's likely a username
+                url = patientServiceBaseUrl + "/api/patient/username/" + patientId;
+            }
+            System.out.println("DEBUG: Calling patient service at URL: " + url);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Content-Type", "application/json");
+            if (token != null && !token.isEmpty()) {
+                headers.set("Authorization", "Bearer " + token);
+            }
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+            
+            ResponseEntity<Object> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                entity,
+                Object.class
+            );
+            
+            System.out.println("DEBUG: Patient service response status: " + response.getStatusCode());
+            System.out.println("DEBUG: Patient service response body: " + response.getBody());
+            
+            return response.getStatusCode().is2xxSuccessful() ? response.getBody() : null;
+        } catch (Exception e) {
+            System.out.println("DEBUG: Error calling patient service: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
 }
