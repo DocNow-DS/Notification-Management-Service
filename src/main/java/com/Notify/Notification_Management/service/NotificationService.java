@@ -24,6 +24,7 @@ public class NotificationService {
     private final PatientServiceClient patientServiceClient;
     private final EmailService emailService;
     private final SmsService smsService;
+    private final WhatsAppService whatsAppService;
 
     public List<Notification> getUserNotifications(String userId, String userType) {
         return notificationRepository.findByRecipientIdAndRecipientTypeOrderByCreatedAtDesc(userId, userType);
@@ -140,6 +141,13 @@ public class NotificationService {
             smsService.sendAppointmentApprovedSms(patientId, appointmentId, startTime, token);
         } catch (Exception e) {
             log.error("Failed to send appointment approved SMS to patient {}: {}", patientId, e.getMessage());
+        }
+        
+        // Send WhatsApp notification
+        try {
+            whatsAppService.sendAppointmentApprovedWhatsApp(patientId, appointmentId, startTime, token);
+        } catch (Exception e) {
+            log.error("Failed to send appointment approved WhatsApp message to patient {}: {}", patientId, e.getMessage());
         }
     }
 
