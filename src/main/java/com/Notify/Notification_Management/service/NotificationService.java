@@ -35,7 +35,7 @@ public class NotificationService {
     }
 
     public Long getUnreadCount(String userId, String userType) {
-        return notificationRepository.countUnreadNotifications(userId, userType);
+        return notificationRepository.countByRecipientIdAndRecipientTypeAndIsReadFalse(userId, userType);
     }
 
     public Notification getNotificationById(String id) {

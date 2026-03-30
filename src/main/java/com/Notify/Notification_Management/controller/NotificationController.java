@@ -138,6 +138,106 @@ public class NotificationController {
         return ResponseEntity.ok(notificationDtos);
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<List<NotificationDto>> getMyNotifications(
+            @RequestParam(defaultValue = "PATIENT") String userType,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        if (authorization == null || authorization.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String token = authorization.replace("Bearer ", "");
+        if (!notificationService.validateUserToken(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String username = notificationService.extractUsernameFromToken(token);
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        List<Notification> notifications = notificationService.getUserNotifications(username, userType);
+        List<NotificationDto> notificationDtos = notifications.stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(notificationDtos);
+    }
+
+    @GetMapping("/me/unread")
+    public ResponseEntity<List<NotificationDto>> getMyUnreadNotifications(
+            @RequestParam(defaultValue = "PATIENT") String userType,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        if (authorization == null || authorization.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String token = authorization.replace("Bearer ", "");
+        if (!notificationService.validateUserToken(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String username = notificationService.extractUsernameFromToken(token);
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        List<Notification> notifications = notificationService.getUnreadNotifications(username, userType);
+        List<NotificationDto> notificationDtos = notifications.stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(notificationDtos);
+    }
+
+    @GetMapping("/me/unread/count")
+    public ResponseEntity<Long> getMyUnreadCount(
+            @RequestParam(defaultValue = "PATIENT") String userType,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        if (authorization == null || authorization.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String token = authorization.replace("Bearer ", "");
+        if (!notificationService.validateUserToken(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String username = notificationService.extractUsernameFromToken(token);
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        Long count = notificationService.getUnreadCount(username, userType);
+        return ResponseEntity.ok(count);
+    }
+
+    @PutMapping("/me/read-all")
+    public ResponseEntity<Void> markAllMyAsRead(
+            @RequestParam(defaultValue = "PATIENT") String userType,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        if (authorization == null || authorization.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String token = authorization.replace("Bearer ", "");
+        if (!notificationService.validateUserToken(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String username = notificationService.extractUsernameFromToken(token);
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        notificationService.markAllAsRead(username, userType);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<NotificationDto>> getUserNotifications(
             @PathVariable String userId,
