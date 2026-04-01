@@ -1,9 +1,10 @@
 # Multi-stage build for Java 17 Spring Boot application
-FROM eclipse-temurin:17-jdk-alpine AS builder
+FROM maven:3.9.9-eclipse-temurin-17 AS builder
 
 WORKDIR /app
-COPY . .
-RUN ./mvnw clean package -DskipTests
+COPY pom.xml .
+COPY src ./src
+RUN mvn -B -DskipTests clean package
 
 # Runtime stage
 FROM eclipse-temurin:17-jre-alpine
