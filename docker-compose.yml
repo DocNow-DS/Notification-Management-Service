@@ -1,18 +1,6 @@
 version: '3.8'
 
 services:
-  mongodb:
-    image: mongo:6.0
-    container_name: notification-mongodb
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_DATABASE: HealthCare
-    volumes:
-      - mongodb_data:/data/db
-    networks:
-      - notification-network
-
   notification-service:
     build:
       context: .
@@ -21,8 +9,8 @@ services:
     ports:
       - "8084:8084"
     environment:
-      # MongoDB connection (using service name as host)
-      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/HealthCare
+      # MongoDB connection (cloud)
+      SPRING_DATA_MONGODB_URI: mongodb+srv://lasannavodya:DelLCS5EiIBT3jFu@course.uf2pi.mongodb.net/HealthCare?retryWrites=true&w=majority&appName=Course
       SPRING_DATA_MONGODB_DATABASE: HealthCare
       
       # Server port
@@ -33,13 +21,8 @@ services:
       SERVICES_PATIENT_BASE_URL: http://host.docker.internal:8081
       SERVICES_DOCTOR_BASE_URL: http://host.docker.internal:8082
       SERVICES_APPOINTMENT_BASE_URL: http://host.docker.internal:8080
-    depends_on:
-      - mongodb
     networks:
       - notification-network
-
-volumes:
-  mongodb_data:
 
 networks:
   notification-network:
