@@ -6,6 +6,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import com.Notify.Notification_Management.client.DoctorServiceClient;
 import com.Notify.Notification_Management.client.PatientServiceClient;
 
 import jakarta.mail.MessagingException;
@@ -21,6 +22,7 @@ public class EmailService {
 
     private final JavaMailSender mailSender;
     private final PatientServiceClient patientServiceClient;
+    private final DoctorServiceClient doctorServiceClient;
 
     public void sendAppointmentApprovedEmail(String patientId, String appointmentId, String startTime, String token) {
         try {
@@ -174,5 +176,158 @@ public class EmailService {
             log.warn("Could not extract patient name: {}", e.getMessage());
         }
         return "Patient";
+    }
+
+    public void sendAppointmentCreatedEmailToDoctor(String doctorId, String patientId, String appointmentId, String startTime, String token) {
+        try {
+            log.info("Attempting to send appointment created email to doctor ID: {}", doctorId);
+
+            // Get doctor details
+            var doctor = doctorServiceClient.getDoctorById(doctorId, token);
+
+            if (doctor == null) {
+                log.error("Doctor not found for doctor ID: {} - Doctor service returned null", doctorId);
+                return;
+            }
+
+            log.info("Doctor data retrieved: {}", doctor);
+
+            String doctorEmail = getDoctorEmail(doctor);
+            if (doctorEmail == null || doctorEmail.trim().isEmpty()) {
+                log.error("No email available for doctor ID: {}", doctorId);
+                return;
+            }
+
+            String doctorName = getDoctorName(doctor);
+            
+            // Get patient name for the notification
+            var patient = patientServiceClient.getPatientById(patientId, token);
+            String patientName = patient != null ? getPatientName(patient) : "A patient";
+
+            log.info("Sending email to: {} for doctor: {}", doctorEmail, doctorName);
+
+            // Send HTML email
+            sendAppointmentCreatedHtmlEmail(doctorEmail, doctorName, patientName, appointmentId, startTime);
+
+            log.info("Appointment created email sent successfully to doctor {} at {}", doctorId, doctorEmail);
+
+        } catch (Exception e) {
+            log.error("Failed to send appointment created email to doctor {}: {}", doctorId, e.getMessage(), e);
+        }
+    }
+
+    private void sendAppointmentCreatedHtmlEmail(String toEmail, String doctorName, String patientName, String appointmentId, String startTime) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom("noreply@healthcare.com");
+            helper.setTo(toEmail);
+            helper.setSubject("New Appointment Request - Healthcare System");
+
+            String htmlContent = buildAppointmentCreatedEmailContent(doctorName, patientName, appointmentId, startTime);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(message);
+        } catch (MessagingException e) {
+            log.error("Failed to send HTML email: {}", e.getMessage(), e);
+            // Fallback to simple email
+            sendAppointmentCreatedSimpleEmail(toEmail, doctorName, patientName, appointmentId, startTime);
+        }
+    }
+
+    private void sendAppointmentCreatedSimpleEmail(String toEmail, String doctorName, String patientName, String appointmentId, String startTime) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom("noreply@healthcare.com");
+            message.setTo(toEmail);
+            message.setSubject("New Appointment Request - Healthcare System");
+            message.setText(buildAppointmentCreatedTextContent(doctorName, patientName, appointmentId, startTime));
+
+            mailSender.send(message);
+        } catch (Exception e) {
+            log.error("Failed to send simple email: {}", e.getMessage(), e);
+        }
+    }
+
+    private String buildAppointmentCreatedEmailContent(String doctorName, String patientName, String appointmentId, String startTime) {
+        return String.format(
+                "<html><body>" +
+                        "<h2>New Appointment Request!</h2>" +
+                        "<p>Dear Dr. %s,</p>" +
+                        "<p>%s has requested an appointment with you.</p>" +
+                        "<p><strong>Appointment Details:</strong></p>" +
+                        "<ul>" +
+                        "<li>Appointment ID: %s</li>" +
+                        "<li>Date & Time: %s</li>" +
+                        "</ul>" +
+                        "<p>Please log in to your dashboard to review and accept or decline this appointment request.</p>" +
+                        "<br>" +
+                        "<p>Best regards,<br/>Healthcare Team</p>" +
+                        "</body></html>",
+                doctorName, patientName, appointmentId, startTime != null ? startTime : "To be scheduled");
+    }
+
+    private String buildAppointmentCreatedTextContent(String doctorName, String patientName, String appointmentId, String startTime) {
+        return String.format(
+                "New Appointment Request!\n\n" +
+                        "Dear Dr. %s,\n\n" +
+                        "%s has requested an appointment with you.\n\n" +
+                        "Appointment Details:\n" +
+                        "Appointment ID: %s\n" +
+                        "Date & Time: %s\n\n" +
+                        "Please log in to your dashboard to review and accept or decline this appointment request.\n\n" +
+                        "Best regards,\n" +
+                        "Healthcare Team",
+                doctorName, patientName, appointmentId, startTime != null ? startTime : "To be scheduled");
+    }
+
+    private String getDoctorEmail(Object doctor) {
+        try {
+            log.debug("Attempting to extract email from doctor object of type: {}", doctor.getClass().getName());
+
+            // Handle LinkedHashMap from RestTemplate
+            if (doctor instanceof java.util.Map) {
+                java.util.Map<?, ?> map = (java.util.Map<?, ?>) doctor;
+                Object email = map.get("email");
+                log.debug("Extracted email from map: {}", email);
+                return email != null ? email.toString() : null;
+            }
+
+            // Fallback to reflection for actual objects
+            if (doctor.getClass().getMethod("getEmail") != null) {
+                String email = (String) doctor.getClass().getMethod("getEmail").invoke(doctor);
+                log.debug("Extracted email via reflection: {}", email);
+                return email;
+            }
+        } catch (Exception e) {
+            log.error("Could not extract doctor email: {}", e.getMessage(), e);
+        }
+        return null;
+    }
+
+    private String getDoctorName(Object doctor) {
+        try {
+            // Handle LinkedHashMap from RestTemplate
+            if (doctor instanceof java.util.Map) {
+                java.util.Map<?, ?> map = (java.util.Map<?, ?>) doctor;
+                Object name = map.get("name");
+                if (name != null && !name.toString().isEmpty()) {
+                    return name.toString();
+                }
+                // Fallback to username if name is not set
+                Object username = map.get("username");
+                return username != null ? username.toString() : "Doctor";
+            }
+
+            // Fallback to reflection for actual objects
+            if (doctor.getClass().getMethod("getName") != null) {
+                String name = (String) doctor.getClass().getMethod("getName").invoke(doctor);
+                return name != null ? name : "Doctor";
+            }
+        } catch (Exception e) {
+            log.warn("Could not extract doctor name: {}", e.getMessage());
+        }
+        return "Doctor";
     }
 }

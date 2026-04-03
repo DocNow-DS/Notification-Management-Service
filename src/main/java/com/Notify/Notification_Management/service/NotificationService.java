@@ -114,12 +114,28 @@ public class NotificationService {
         return notificationRepository.save(notification);
     }
 
-    public void createAppointmentCreatedNotification(String patientId, String doctorId, LocalDateTime appointmentTime) {
-        String patientMessage = String.format("Your appointment has been scheduled for %s", appointmentTime);
-        String doctorMessage = String.format("New appointment scheduled with patient for %s", appointmentTime);
+    public void createAppointmentCreatedNotification(String patientId, String doctorId, String appointmentId, String startTime, String token) {
+        String patientMessage = String.format("Your appointment has been scheduled for %s", startTime);
+        String doctorMessage = String.format("New appointment scheduled with patient for %s", startTime);
         
         createNotification(patientId, "PATIENT", patientMessage, "APPOINTMENT_CREATED");
         createNotification(doctorId, "DOCTOR", doctorMessage, "APPOINTMENT_CREATED");
+        
+        log.info("Created APPOINTMENT_CREATED notifications for patient {} and doctor {} for appointment {}", patientId, doctorId, appointmentId);
+        
+        // Send email notification to doctor
+        try {
+            emailService.sendAppointmentCreatedEmailToDoctor(doctorId, patientId, appointmentId, startTime, token);
+        } catch (Exception e) {
+            log.error("Failed to send appointment created email to doctor {}: {}", doctorId, e.getMessage());
+        }
+        
+        // Send WhatsApp notification to doctor
+        try {
+            whatsAppService.sendAppointmentCreatedWhatsAppToDoctor(doctorId, patientId, appointmentId, startTime, token);
+        } catch (Exception e) {
+            log.error("Failed to send appointment created WhatsApp message to doctor {}: {}", doctorId, e.getMessage());
+        }
     }
 
     public void createAppointmentApprovedNotification(String patientId, String appointmentId, String startTime, String token) {

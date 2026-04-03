@@ -68,6 +68,16 @@ public class NotificationController {
 
         try {
             switch (request.getNotificationType()) {
+                case "APPOINTMENT_CREATED":
+                    String createdToken = authorization.replace("Bearer ", "");
+                    notificationService.createAppointmentCreatedNotification(
+                        request.getPatientId(),
+                        request.getDoctorId(),
+                        request.getAppointmentId(),
+                        request.getStartTime(),
+                        createdToken
+                    );
+                    break;
                 case "APPOINTMENT_APPROVED":
                     String token = authorization.replace("Bearer ", "");
                     notificationService.createAppointmentApprovedNotification(

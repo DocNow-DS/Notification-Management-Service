@@ -1,5 +1,6 @@
 package com.Notify.Notification_Management.service;
 
+import com.Notify.Notification_Management.client.DoctorServiceClient;
 import com.Notify.Notification_Management.client.PatientServiceClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,7 @@ import org.springframework.web.client.RestTemplate;
 public class WhatsAppService {
 
     private final PatientServiceClient patientServiceClient;
+    private final DoctorServiceClient doctorServiceClient;
     private final RestTemplate restTemplate;
 
     @Value("${ultramsg.instance.id}")
@@ -245,5 +247,116 @@ public class WhatsAppService {
                 "Best regards,\n" +
                 "Healthcare Team";
         return baseMessage;
+    }
+
+    public void sendAppointmentCreatedWhatsAppToDoctor(String doctorId, String patientId, String appointmentId, String startTime, String token) {
+        try {
+            log.info("Attempting to send appointment created WhatsApp message to doctor ID: {}", doctorId);
+
+            // Check if Ultramsg is configured
+            if (!isConfigured()) {
+                log.warn("Ultramsg not configured. Skipping WhatsApp notification for doctor {}", doctorId);
+                return;
+            }
+
+            // Get doctor details
+            var doctor = doctorServiceClient.getDoctorById(doctorId, token);
+
+            if (doctor == null) {
+                log.error("Doctor not found for doctor ID: {} - Doctor service returned null", doctorId);
+                return;
+            }
+
+            String doctorPhone = getDoctorPhone(doctor);
+            if (doctorPhone == null || doctorPhone.trim().isEmpty()) {
+                log.error("No phone number available for doctor ID: {}", doctorId);
+                return;
+            }
+
+            String doctorName = getDoctorName(doctor);
+            
+            // Get patient name for the notification
+            var patient = patientServiceClient.getPatientById(patientId, token);
+            String patientName = patient != null ? getPatientName(patient) : "A patient";
+
+            String message = buildAppointmentCreatedWhatsAppContent(doctorName, patientName, appointmentId, startTime);
+
+            sendWhatsAppMessage(doctorPhone, message);
+            log.info("Appointment created WhatsApp message sent successfully to doctor {} at {}", doctorId, doctorPhone);
+
+        } catch (Exception e) {
+            log.error("Failed to send appointment created WhatsApp message to doctor {}: {}", doctorId, e.getMessage(), e);
+        }
+    }
+
+    private String getDoctorPhone(Object doctor) {
+        try {
+            log.debug("Attempting to extract phone from doctor object of type: {}", doctor.getClass().getName());
+
+            if (doctor instanceof java.util.Map) {
+                java.util.Map<?, ?> map = (java.util.Map<?, ?>) doctor;
+                Object phone = map.get("phone");
+                if (phone != null && !phone.toString().isEmpty()) {
+                    return formatPhoneNumber(phone.toString());
+                }
+                Object phoneNumber = map.get("phoneNumber");
+                if (phoneNumber != null && !phoneNumber.toString().isEmpty()) {
+                    return formatPhoneNumber(phoneNumber.toString());
+                }
+                Object mobile = map.get("mobile");
+                if (mobile != null && !mobile.toString().isEmpty()) {
+                    return formatPhoneNumber(mobile.toString());
+                }
+                log.debug("No phone number found in doctor map. Available keys: {}", map.keySet());
+                return null;
+            }
+
+            if (doctor.getClass().getMethod("getPhone") != null) {
+                String phone = (String) doctor.getClass().getMethod("getPhone").invoke(doctor);
+                return formatPhoneNumber(phone);
+            }
+        } catch (Exception e) {
+            log.error("Could not extract doctor phone: {}", e.getMessage(), e);
+        }
+        return null;
+    }
+
+    private String getDoctorName(Object doctor) {
+        try {
+            if (doctor instanceof java.util.Map) {
+                java.util.Map<?, ?> map = (java.util.Map<?, ?>) doctor;
+                Object name = map.get("name");
+                if (name != null && !name.toString().isEmpty()) {
+                    return name.toString();
+                }
+                Object username = map.get("username");
+                return username != null ? username.toString() : "Doctor";
+            }
+
+            if (doctor.getClass().getMethod("getName") != null) {
+                String name = (String) doctor.getClass().getMethod("getName").invoke(doctor);
+                return name != null ? name : "Doctor";
+            }
+        } catch (Exception e) {
+            log.warn("Could not extract doctor name: {}", e.getMessage());
+        }
+        return "Doctor";
+    }
+
+    private String buildAppointmentCreatedWhatsAppContent(String doctorName, String patientName, String appointmentId, String startTime) {
+        return String.format(
+                "Hello Dr. %s,\n\n" +
+                        "%s has requested an appointment with you.\n\n" +
+                        "Appointment Details:\n" +
+                        "Appointment ID: %s\n" +
+                        "Date & Time: %s\n\n" +
+                        "Please log in to your dashboard to review and accept or decline this appointment request.\n\n" +
+                        "Best regards,\n" +
+                        "Healthcare Team",
+                doctorName,
+                patientName,
+                appointmentId,
+                startTime != null ? startTime : "To be scheduled"
+        );
     }
 }
