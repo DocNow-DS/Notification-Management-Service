@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.Notify.Notification_Management.client.DoctorServiceClient;
 import com.Notify.Notification_Management.client.PatientServiceClient;
 import com.Notify.Notification_Management.dto.NotificationDto;
 import com.Notify.Notification_Management.model.Notification;
@@ -22,6 +23,7 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final PatientServiceClient patientServiceClient;
+    private final DoctorServiceClient doctorServiceClient;
     private final EmailService emailService;
     private final SmsService smsService;
     private final WhatsAppService whatsAppService;
@@ -118,10 +120,60 @@ public class NotificationService {
         String patientMessage = String.format("Your appointment has been scheduled for %s", startTime);
         String doctorMessage = String.format("New appointment scheduled with patient for %s", startTime);
         
-        createNotification(patientId, "PATIENT", patientMessage, "APPOINTMENT_CREATED");
-        createNotification(doctorId, "DOCTOR", doctorMessage, "APPOINTMENT_CREATED");
+        log.info("Creating appointment notification: patientId={}, doctorId={}, appointmentId={}", patientId, doctorId, appointmentId);
         
-        log.info("Created APPOINTMENT_CREATED notifications for patient {} and doctor {} for appointment {}", patientId, doctorId, appointmentId);
+        // Create notification for patient (patientId is already the username/email)
+        Notification patientNotification = createNotification(patientId, "PATIENT", patientMessage, "APPOINTMENT_CREATED");
+        log.info("Created PATIENT notification with id: {}, recipientId: {}", patientNotification.getId(), patientNotification.getRecipientId());
+        
+        // Fetch doctor's profile to get the username (email) for the recipientId
+        String doctorUsername = doctorId;
+        log.info("Attempting to resolve doctor profile for doctorId: {}", doctorId);
+        
+        // First try doctor service
+        try {
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, Object> doctorProfile = (java.util.Map<String, Object>) doctorServiceClient.getDoctorById(doctorId, token);
+            log.info("Doctor service response: {}", doctorProfile);
+            if (doctorProfile != null && doctorProfile.get("username") != null) {
+                doctorUsername = (String) doctorProfile.get("username");
+                log.info("Resolved doctor {} to username via doctor service: {}", doctorId, doctorUsername);
+            } else {
+                log.warn("Doctor service returned null or no username for {}, will try patient service", doctorId);
+                // Fallback to patient service directly
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> patientProfile = (java.util.Map<String, Object>) patientServiceClient.getPatientById(doctorId, token);
+                log.info("Patient service response: {}", patientProfile);
+                if (patientProfile != null && patientProfile.get("username") != null) {
+                    doctorUsername = (String) patientProfile.get("username");
+                    log.info("Resolved doctor {} to username via patient service: {}", doctorId, doctorUsername);
+                } else {
+                    log.warn("Could not resolve doctor {} from either service, using doctorId as fallback", doctorId);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error fetching doctor profile from doctor service: {}, trying patient service", e.getMessage());
+            // Fallback to patient service
+            try {
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> patientProfile = (java.util.Map<String, Object>) patientServiceClient.getPatientById(doctorId, token);
+                log.info("Patient service response: {}", patientProfile);
+                if (patientProfile != null && patientProfile.get("username") != null) {
+                    doctorUsername = (String) patientProfile.get("username");
+                    log.info("Resolved doctor {} to username via patient service fallback: {}", doctorId, doctorUsername);
+                } else {
+                    log.warn("Patient service also returned null or no username for {}, using doctorId as fallback", doctorId);
+                }
+            } catch (Exception ex) {
+                log.error("Error fetching doctor profile from patient service: {}, using doctorId as fallback", ex.getMessage());
+            }
+        }
+        
+        Notification doctorNotification = createNotification(doctorUsername, "DOCTOR", doctorMessage, "APPOINTMENT_CREATED");
+        log.info("Created DOCTOR notification with id: {}, recipientId: {}, recipientType: {}", 
+                 doctorNotification.getId(), doctorNotification.getRecipientId(), doctorNotification.getRecipientType());
+        
+        log.info("Created APPOINTMENT_CREATED notifications for patient {} and doctor {} (username: {}) for appointment {}", patientId, doctorId, doctorUsername, appointmentId);
         
         // Send email notification to doctor
         try {
