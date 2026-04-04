@@ -13,7 +13,6 @@ public class AppointmentNotificationRequest {
     @NotBlank(message = "Patient ID is required")
     private String patientId;
 
-    @NotBlank(message = "Doctor ID is required")
     private String doctorId;
     
     @NotBlank(message = "Appointment ID is required")

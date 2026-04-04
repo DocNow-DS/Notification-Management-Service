@@ -1,15 +1,18 @@
 package com.Notify.Notification_Management.service;
 
 import com.Notify.Notification_Management.client.PatientServiceClient;
-import com.twilio.Twilio;
-import com.twilio.rest.api.v2010.account.Message;
-import com.twilio.type.PhoneNumber;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
-import jakarta.annotation.PostConstruct;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -17,25 +20,16 @@ import jakarta.annotation.PostConstruct;
 public class SmsService {
 
     private final PatientServiceClient patientServiceClient;
+    private final RestTemplate restTemplate = new RestTemplate();
 
-    @Value("${twilio.account.sid}")
-    private String accountSid;
+    @Value("${smsapi.api.key}")
+    private String apiKey;
 
-    @Value("${twilio.auth.token}")
-    private String authToken;
+    @Value("${smsapi.api.url}")
+    private String apiUrl;
 
-    @Value("${twilio.phone.number}")
-    private String twilioPhoneNumber;
-
-    @PostConstruct
-    public void init() {
-        if (accountSid != null && !accountSid.isEmpty() && authToken != null && !authToken.isEmpty()) {
-            Twilio.init(accountSid, authToken);
-            log.info("Twilio initialized successfully");
-        } else {
-            log.warn("Twilio credentials not configured. SMS notifications will be disabled.");
-        }
-    }
+    @Value("${smsapi.sender.id}")
+    private String senderId;
 
     public void sendAppointmentApprovedSms(String patientId, String appointmentId, String startTime, String token) {
         try {
@@ -95,18 +89,33 @@ public class SmsService {
 
     private void sendSms(String phoneNumber, String messageText) {
         try {
-            if (accountSid == null || accountSid.isEmpty() || authToken == null || authToken.isEmpty()) {
-                log.warn("Twilio not configured. Would have sent SMS to {}: {}", phoneNumber, messageText);
+            if (apiKey == null || apiKey.isEmpty()) {
+                log.warn("SMSAPI.LK not configured. Would have sent SMS to {}: {}", phoneNumber, messageText);
                 return;
             }
 
-            Message message = Message.creator(
-                    new PhoneNumber(phoneNumber),
-                    new PhoneNumber(twilioPhoneNumber),
-                    messageText
-            ).create();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + apiKey);
+            headers.set("Accept", "application/json");
 
-            log.info("SMS sent successfully. SID: {}, Status: {}", message.getSid(), message.getStatus());
+            Map<String, String> requestBody = new HashMap<>();
+            requestBody.put("recipient", phoneNumber);
+            requestBody.put("sender_id", senderId);
+            requestBody.put("type", "plain");
+            requestBody.put("message", messageText);
+
+            HttpEntity<Map<String, String>> request = new HttpEntity<>(requestBody, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(apiUrl, request, String.class);
+
+            if (response.getStatusCode().is2xxSuccessful()) {
+                log.info("SMS sent successfully to {}. Response: {}", phoneNumber, response.getBody());
+            } else {
+                log.error("Failed to send SMS to {}. Status: {}, Response: {}", 
+                    phoneNumber, response.getStatusCode(), response.getBody());
+                throw new RuntimeException("SMS API returned non-success status: " + response.getStatusCode());
+            }
         } catch (Exception e) {
             log.error("Failed to send SMS to {}: {}", phoneNumber, e.getMessage(), e);
             throw new RuntimeException("Failed to send SMS", e);
@@ -149,10 +158,21 @@ public class SmsService {
         if (phone == null || phone.trim().isEmpty()) {
             return null;
         }
-        phone = phone.trim().replaceAll("[^\\d+]", "");
-        if (!phone.startsWith("+") && !phone.startsWith("00")) {
-            phone = "+94" + phone;
+        phone = phone.trim().replaceAll("[^\\d]", "");
+        
+        // smsapi.lk expects numbers in format 94XXXXXXXXX (without + prefix)
+        if (phone.startsWith("00")) {
+            phone = phone.substring(2);
+        } else if (phone.startsWith("+")) {
+            phone = phone.substring(1);
+        } else if (phone.startsWith("0")) {
+            // Local Sri Lankan number starting with 0
+            phone = "94" + phone.substring(1);
+        } else if (!phone.startsWith("94")) {
+            // Add country code if not present
+            phone = "94" + phone;
         }
+        
         return phone;
     }
 
