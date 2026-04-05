@@ -24,4 +24,28 @@ public class AppointmentNotificationRequest {
     private String startTime;
     
     private String reason; // For APPOINTMENT_DECLINED notifications
+
+    public String getNotificationType() {
+        return notificationType;
+    }
+
+    public String getPatientId() {
+        return patientId;
+    }
+
+    public String getAppointmentId() {
+        return appointmentId;
+    }
+
+    public String getStartTime() {
+        return startTime;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public String getDoctorId() {
+        return doctorId;
+    }
 }
