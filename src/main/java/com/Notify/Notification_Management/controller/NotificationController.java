@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.Notify.Notification_Management.client.PatientServiceClient;
 import com.Notify.Notification_Management.dto.AppointmentNotificationRequest;
 import com.Notify.Notification_Management.dto.CarePlanNotificationRequest;
 import com.Notify.Notification_Management.dto.NotificationDto;
@@ -26,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final PatientServiceClient patientServiceClient;
 
     // CREATE Operations
     
@@ -239,8 +241,30 @@ public class NotificationController {
         if (username == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        
+        // Also try to get userId from patient service (it may be the same as username or an ObjectId)
+        String userId = username; // Default to username
+        try {
+            // Try to resolve userId from patient service using the username
+            var patientProfile = patientServiceClient.getPatientById(username, token);
+            if (patientProfile != null) {
+                // Try to extract id from profile
+                if (patientProfile instanceof java.util.Map) {
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> profile = (java.util.Map<String, Object>) patientProfile;
+                    if (profile.get("id") != null) {
+                        userId = (String) profile.get("id");
+                    } else if (profile.get("_id") != null) {
+                        userId = (String) profile.get("_id");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // If patient service fails, use username as userId fallback
+            log.debug("Could not resolve userId from patient service, using username: {}", username);
+        }
 
-        List<Notification> notifications = notificationService.getUserNotifications(username, userType);
+        List<Notification> notifications = notificationService.getUserNotificationsByUsernameOrId(username, userId, userType);
         List<NotificationDto> notificationDtos = notifications.stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
@@ -266,8 +290,30 @@ public class NotificationController {
         if (username == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        
+        // Also try to get userId from patient service (it may be the same as username or an ObjectId)
+        String userId = username; // Default to username
+        try {
+            // Try to resolve userId from patient service using the username
+            var patientProfile = patientServiceClient.getPatientById(username, token);
+            if (patientProfile != null) {
+                // Try to extract id from profile
+                if (patientProfile instanceof java.util.Map) {
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> profile = (java.util.Map<String, Object>) patientProfile;
+                    if (profile.get("id") != null) {
+                        userId = (String) profile.get("id");
+                    } else if (profile.get("_id") != null) {
+                        userId = (String) profile.get("_id");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // If patient service fails, use username as userId fallback
+            log.debug("Could not resolve userId from patient service, using username: {}", username);
+        }
 
-        List<Notification> notifications = notificationService.getUnreadNotifications(username, userType);
+        List<Notification> notifications = notificationService.getUnreadNotificationsByUsernameOrId(username, userId, userType);
         List<NotificationDto> notificationDtos = notifications.stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
@@ -293,8 +339,30 @@ public class NotificationController {
         if (username == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        
+        // Also try to get userId from patient service (it may be the same as username or an ObjectId)
+        String userId = username; // Default to username
+        try {
+            // Try to resolve userId from patient service using the username
+            var patientProfile = patientServiceClient.getPatientById(username, token);
+            if (patientProfile != null) {
+                // Try to extract id from profile
+                if (patientProfile instanceof java.util.Map) {
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> profile = (java.util.Map<String, Object>) patientProfile;
+                    if (profile.get("id") != null) {
+                        userId = (String) profile.get("id");
+                    } else if (profile.get("_id") != null) {
+                        userId = (String) profile.get("_id");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // If patient service fails, use username as userId fallback
+            log.debug("Could not resolve userId from patient service, using username: {}", username);
+        }
 
-        Long count = notificationService.getUnreadCount(username, userType);
+        Long count = notificationService.getUnreadCountByUsernameOrId(username, userId, userType);
         return ResponseEntity.ok(count);
     }
 
@@ -316,8 +384,30 @@ public class NotificationController {
         if (username == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        
+        // Also try to get userId from patient service (it may be the same as username or an ObjectId)
+        String userId = username; // Default to username
+        try {
+            // Try to resolve userId from patient service using the username
+            var patientProfile = patientServiceClient.getPatientById(username, token);
+            if (patientProfile != null) {
+                // Try to extract id from profile
+                if (patientProfile instanceof java.util.Map) {
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> profile = (java.util.Map<String, Object>) patientProfile;
+                    if (profile.get("id") != null) {
+                        userId = (String) profile.get("id");
+                    } else if (profile.get("_id") != null) {
+                        userId = (String) profile.get("_id");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // If patient service fails, use username as userId fallback
+            log.debug("Could not resolve userId from patient service, using username: {}", username);
+        }
 
-        notificationService.markAllAsRead(username, userType);
+        notificationService.markAllAsReadByUsernameOrId(username, userId, userType);
         return ResponseEntity.ok().build();
     }
 

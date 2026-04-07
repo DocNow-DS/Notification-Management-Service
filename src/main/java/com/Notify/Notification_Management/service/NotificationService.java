@@ -32,12 +32,59 @@ public class NotificationService {
         return notificationRepository.findByRecipientIdAndRecipientTypeOrderByCreatedAtDesc(userId, userType);
     }
 
+    public List<Notification> getUserNotificationsByUsernameOrId(String username, String userId, String userType) {
+        // Query notifications where recipientId matches either username OR userId
+        List<Notification> byUsername = notificationRepository.findByRecipientIdAndRecipientTypeOrderByCreatedAtDesc(username, userType);
+        List<Notification> byId = notificationRepository.findByRecipientIdAndRecipientTypeOrderByCreatedAtDesc(userId, userType);
+        
+        // Merge and remove duplicates
+        java.util.Set<Notification> merged = new java.util.LinkedHashSet<>();
+        merged.addAll(byUsername);
+        merged.addAll(byId);
+        
+        return merged.stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .collect(Collectors.toList());
+    }
+
     public List<Notification> getUnreadNotifications(String userId, String userType) {
         return notificationRepository.findByRecipientIdAndRecipientTypeAndIsReadFalseOrderByCreatedAtDesc(userId, userType);
     }
 
+    public List<Notification> getUnreadNotificationsByUsernameOrId(String username, String userId, String userType) {
+        // Query unread notifications where recipientId matches either username OR userId
+        List<Notification> byUsername = notificationRepository.findByRecipientIdAndRecipientTypeAndIsReadFalseOrderByCreatedAtDesc(username, userType);
+        List<Notification> byId = notificationRepository.findByRecipientIdAndRecipientTypeAndIsReadFalseOrderByCreatedAtDesc(userId, userType);
+        
+        // Merge and remove duplicates
+        java.util.Set<Notification> merged = new java.util.LinkedHashSet<>();
+        merged.addAll(byUsername);
+        merged.addAll(byId);
+        
+        return merged.stream()
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
+                .collect(Collectors.toList());
+    }
+
     public Long getUnreadCount(String userId, String userType) {
         return notificationRepository.countByRecipientIdAndRecipientTypeAndIsReadFalse(userId, userType);
+    }
+
+    public Long getUnreadCountByUsernameOrId(String username, String userId, String userType) {
+        // Count unread notifications where recipientId matches either username OR userId
+        Long byUsername = notificationRepository.countByRecipientIdAndRecipientTypeAndIsReadFalse(username, userType);
+        Long byId = notificationRepository.countByRecipientIdAndRecipientTypeAndIsReadFalse(userId, userType);
+        
+        // If same recipientId appears in both counts, we might double count
+        // Get actual notifications to count unique ones
+        List<Notification> unreadByUsername = notificationRepository.findByRecipientIdAndRecipientTypeAndIsReadFalseOrderByCreatedAtDesc(username, userType);
+        List<Notification> unreadById = notificationRepository.findByRecipientIdAndRecipientTypeAndIsReadFalseOrderByCreatedAtDesc(userId, userType);
+        
+        java.util.Set<String> uniqueIds = new java.util.HashSet<>();
+        unreadByUsername.forEach(n -> uniqueIds.add(n.getId()));
+        unreadById.forEach(n -> uniqueIds.add(n.getId()));
+        
+        return (long) uniqueIds.size();
     }
 
     public Notification getNotificationById(String id) {
@@ -108,6 +155,22 @@ public class NotificationService {
         List<Notification> unreadNotifications = getUnreadNotifications(userId, userType);
         unreadNotifications.forEach(notification -> notification.setIsRead(true));
         notificationRepository.saveAll(unreadNotifications);
+    }
+
+    @Transactional
+    public void markAllAsReadByUsernameOrId(String username, String userId, String userType) {
+        // Get unread notifications for both username and userId
+        List<Notification> unreadByUsername = getUnreadNotifications(username, userType);
+        List<Notification> unreadById = getUnreadNotifications(userId, userType);
+        
+        // Merge and remove duplicates
+        java.util.Set<Notification> merged = new java.util.LinkedHashSet<>();
+        merged.addAll(unreadByUsername);
+        merged.addAll(unreadById);
+        
+        // Mark all as read
+        merged.forEach(notification -> notification.setIsRead(true));
+        notificationRepository.saveAll(merged);
     }
 
     @Transactional
