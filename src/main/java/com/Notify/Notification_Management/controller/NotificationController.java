@@ -8,7 +8,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.Notify.Notification_Management.dto.AppointmentNotificationRequest;
+import com.Notify.Notification_Management.dto.CarePlanNotificationRequest;
 import com.Notify.Notification_Management.dto.NotificationDto;
+import com.Notify.Notification_Management.dto.PaymentNotificationRequest;
 import com.Notify.Notification_Management.model.Notification;
 import com.Notify.Notification_Management.service.NotificationService;
 
@@ -109,6 +111,77 @@ public class NotificationController {
             log.error("Error creating notification", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error creating notification");
+        }
+    }
+
+    @PostMapping("/payment")
+    public ResponseEntity<String> createPaymentNotification(
+            @Valid @RequestBody PaymentNotificationRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        // Token validation is optional for payment notifications (e.g., from webhooks)
+        String token = null;
+        if (authorization != null && !authorization.isBlank()) {
+            token = authorization.replace("Bearer ", "");
+            if (!notificationService.validateUserToken(token)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+        }
+
+        try {
+            notificationService.createPaymentCompletedNotification(
+                request.getPatientId(),
+                request.getDoctorId(),
+                request.getPaymentId(),
+                request.getConsultationId(),
+                request.getAmountCents(),
+                request.getCurrency(),
+                token
+            );
+            
+            log.info("Created payment notification for doctor {} from patient {} for payment {}", 
+                request.getDoctorId(), request.getPatientId(), request.getPaymentId());
+            
+            return ResponseEntity.ok("Payment notification created successfully");
+        } catch (Exception e) {
+            log.error("Error creating payment notification", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error creating payment notification");
+        }
+    }
+
+    @PostMapping("/care-plan")
+    public ResponseEntity<String> createCarePlanNotification(
+            @Valid @RequestBody CarePlanNotificationRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        // Token validation is optional for care plan notifications (e.g., from internal services)
+        String token = null;
+        if (authorization != null && !authorization.isBlank()) {
+            token = authorization.replace("Bearer ", "");
+            if (!notificationService.validateUserToken(token)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+        }
+
+        try {
+            notificationService.createCarePlanCreatedNotification(
+                request.getPatientId(),
+                request.getDoctorId(),
+                request.getCarePlanId(),
+                request.getAppointmentId(),
+                request.getConsultationNotes(),
+                token
+            );
+            
+            log.info("Created care plan notification for patient {} from doctor {} for care plan {}", 
+                request.getPatientId(), request.getDoctorId(), request.getCarePlanId());
+            
+            return ResponseEntity.ok("Care plan notification created successfully");
+        } catch (Exception e) {
+            log.error("Error creating care plan notification", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error creating care plan notification");
         }
     }
 

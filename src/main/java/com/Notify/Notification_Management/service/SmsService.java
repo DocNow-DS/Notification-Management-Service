@@ -225,4 +225,41 @@ public class SmsService {
         baseMessage += " Please reschedule. - HealthCare";
         return baseMessage;
     }
+
+    public void sendCarePlanCreatedSms(String patientId, String doctorId, String carePlanId, String token) {
+        try {
+            log.info("Attempting to send care plan created SMS for patient ID: {}", patientId);
+
+            var patient = patientServiceClient.getPatientById(patientId, token);
+
+            if (patient == null) {
+                log.error("Patient not found for patient ID: {} - Patient service returned null", patientId);
+                return;
+            }
+
+            String patientPhone = getPatientPhone(patient);
+            if (patientPhone == null || patientPhone.trim().isEmpty()) {
+                log.error("No phone number available for patient ID: {}", patientId);
+                return;
+            }
+
+            String patientName = getPatientName(patient);
+            String message = buildCarePlanCreatedSmsContent(patientName, carePlanId);
+
+            sendSms(patientPhone, message);
+            log.info("Care plan created SMS sent successfully to patient {} at {}", patientId, patientPhone);
+
+        } catch (Exception e) {
+            log.error("Failed to send care plan created SMS to patient {}: {}", patientId, e.getMessage(), e);
+        }
+    }
+
+    private String buildCarePlanCreatedSmsContent(String patientName, String carePlanId) {
+        return String.format(
+                "Dear %s, your doctor has created a new care plan for you (ID: %s). " +
+                        "Please check your dashboard for details. - HealthCare",
+                patientName,
+                carePlanId
+        );
+    }
 }
