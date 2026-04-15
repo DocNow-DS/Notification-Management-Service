@@ -15,6 +15,8 @@ import com.Notify.Notification_Management.dto.PaymentNotificationRequest;
 import com.Notify.Notification_Management.model.Notification;
 import com.Notify.Notification_Management.service.NotificationService;
 
+import org.springframework.data.mongodb.core.MongoTemplate;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,7 @@ public class NotificationController {
 
     private final NotificationService notificationService;
     private final PatientServiceClient patientServiceClient;
+    private final MongoTemplate mongoTemplate;
 
     // CREATE Operations
     
@@ -564,6 +567,42 @@ public class NotificationController {
         notificationService.deleteReadNotifications(userId, userType);
         log.info("Deleted read notifications for user {} of type {}", userId, userType);
         return ResponseEntity.noContent().build();
+    }
+
+    // DEBUG: List all collections in the database
+
+    @GetMapping("/debug/collections")
+    public ResponseEntity<?> debugCollections() {
+        try {
+            var db = mongoTemplate.getDb();
+            String dbName = db.getName();
+            var collectionNames = mongoTemplate.getCollectionNames();
+
+            java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+            result.put("database", dbName);
+
+            java.util.List<java.util.Map<String, Object>> collections = new java.util.ArrayList<>();
+            for (String collName : collectionNames) {
+                java.util.Map<String, Object> collInfo = new java.util.LinkedHashMap<>();
+                collInfo.put("name", collName);
+                collInfo.put("documentCount", mongoTemplate.getCollection(collName).countDocuments());
+                collections.add(collInfo);
+            }
+            result.put("collections", collections);
+
+            // Also show what collection the Notification entity maps to
+            org.springframework.data.mongodb.core.mapping.MongoPersistentEntity<?> persistentEntity =
+                mongoTemplate.getConverter().getMappingContext().getPersistentEntity(Notification.class);
+            if (persistentEntity != null) {
+                result.put("notificationEntityCollection", persistentEntity.getCollection());
+            }
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Error listing collections", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error: " + e.getMessage());
+        }
     }
 
     private NotificationDto convertToDto(Notification notification) {
