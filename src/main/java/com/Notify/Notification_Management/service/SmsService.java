@@ -202,17 +202,21 @@ public class SmsService {
 
     private String buildAppointmentApprovedSmsContent(String patientName, String appointmentId, String startTime) {
         return String.format(
-                "Dear %s, your appointment (ID: %s) has been APPROVED by the doctor. " +
-                        "Scheduled for: %s. Please arrive 15 minutes early. - HealthCare",
+                "Hello %s,\n\n" +
+                        "We are pleased to inform you that your appointment (ID: %s) has been approved by the doctor. " +
+                        "Your scheduled time is %s. Please arrive 15 minutes prior to your appointment time. " +
+                        "We appreciate your understanding and cooperation. " +
+                        "Thank you for choosing our healthcare services. " +
+                        "Warm regards, HealthCare Team",
                 patientName,
                 appointmentId,
-                startTime != null ? startTime : "scheduled time"
+                startTime != null ? startTime : "the scheduled time"
         );
     }
 
     private String buildAppointmentDeclinedSmsContent(String patientName, String appointmentId, String startTime, String reason) {
         String baseMessage = String.format(
-                "Dear %s, your appointment (ID: %s) scheduled for %s has been DECLINED by the doctor.",
+                "Dear %s,\n\nYour appointment (ID: %s) scheduled for %s has been *DECLINED* by the doctor.",
                 patientName,
                 appointmentId,
                 startTime != null ? startTime : "scheduled time"
@@ -256,8 +260,11 @@ public class SmsService {
 
     private String buildCarePlanCreatedSmsContent(String patientName, String carePlanId) {
         return String.format(
-                "Dear %s, your doctor has created a new care plan for you (ID: %s). " +
-                        "Please check your dashboard for details. - HealthCare",
+                "Hello %s,\n\n" +
+                        "Your doctor has created a new care plan for you (ID: %s). " +
+                        "Please check your dashboard for details. " +
+                        "Thank you for choosing our healthcare services. " +
+                        "Warm regards, HealthCare Team",
                 patientName,
                 carePlanId
         );
