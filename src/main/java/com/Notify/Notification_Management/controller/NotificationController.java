@@ -7,10 +7,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.Notify.Notification_Management.client.PatientServiceClient;
 import com.Notify.Notification_Management.dto.AppointmentNotificationRequest;
+import com.Notify.Notification_Management.dto.CarePlanNotificationRequest;
 import com.Notify.Notification_Management.dto.NotificationDto;
+import com.Notify.Notification_Management.dto.PaymentNotificationRequest;
 import com.Notify.Notification_Management.model.Notification;
 import com.Notify.Notification_Management.service.NotificationService;
+
+import org.springframework.data.mongodb.core.MongoTemplate;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final PatientServiceClient patientServiceClient;
+    private final MongoTemplate mongoTemplate;
 
     // CREATE Operations
     
@@ -68,6 +75,16 @@ public class NotificationController {
 
         try {
             switch (request.getNotificationType()) {
+                case "APPOINTMENT_CREATED":
+                    String createdToken = authorization.replace("Bearer ", "");
+                    notificationService.createAppointmentCreatedNotification(
+                        request.getPatientId(),
+                        request.getDoctorId(),
+                        request.getAppointmentId(),
+                        request.getStartTime(),
+                        createdToken
+                    );
+                    break;
                 case "APPOINTMENT_APPROVED":
                     String token = authorization.replace("Bearer ", "");
                     notificationService.createAppointmentApprovedNotification(
@@ -75,6 +92,16 @@ public class NotificationController {
                         request.getAppointmentId(),
                         request.getStartTime(),
                         token
+                    );
+                    break;
+                case "APPOINTMENT_DECLINED":
+                    String declineToken = authorization.replace("Bearer ", "");
+                    notificationService.createAppointmentDeclinedNotification(
+                        request.getPatientId(),
+                        request.getAppointmentId(),
+                        request.getStartTime(),
+                        request.getReason(),
+                        declineToken
                     );
                     break;
                 default:
@@ -89,6 +116,77 @@ public class NotificationController {
             log.error("Error creating notification", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error creating notification");
+        }
+    }
+
+    @PostMapping("/payment")
+    public ResponseEntity<String> createPaymentNotification(
+            @Valid @RequestBody PaymentNotificationRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        // Token validation is optional for payment notifications (e.g., from webhooks)
+        String token = null;
+        if (authorization != null && !authorization.isBlank()) {
+            token = authorization.replace("Bearer ", "");
+            if (!notificationService.validateUserToken(token)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+        }
+
+        try {
+            notificationService.createPaymentCompletedNotification(
+                request.getPatientId(),
+                request.getDoctorId(),
+                request.getPaymentId(),
+                request.getConsultationId(),
+                request.getAmountCents(),
+                request.getCurrency(),
+                token
+            );
+            
+            log.info("Created payment notification for doctor {} from patient {} for payment {}", 
+                request.getDoctorId(), request.getPatientId(), request.getPaymentId());
+            
+            return ResponseEntity.ok("Payment notification created successfully");
+        } catch (Exception e) {
+            log.error("Error creating payment notification", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error creating payment notification");
+        }
+    }
+
+    @PostMapping("/care-plan")
+    public ResponseEntity<String> createCarePlanNotification(
+            @Valid @RequestBody CarePlanNotificationRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        // Token validation is optional for care plan notifications (e.g., from internal services)
+        String token = null;
+        if (authorization != null && !authorization.isBlank()) {
+            token = authorization.replace("Bearer ", "");
+            if (!notificationService.validateUserToken(token)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+        }
+
+        try {
+            notificationService.createCarePlanCreatedNotification(
+                request.getPatientId(),
+                request.getDoctorId(),
+                request.getCarePlanId(),
+                request.getAppointmentId(),
+                request.getConsultationNotes(),
+                token
+            );
+            
+            log.info("Created care plan notification for patient {} from doctor {} for care plan {}", 
+                request.getPatientId(), request.getDoctorId(), request.getCarePlanId());
+            
+            return ResponseEntity.ok("Care plan notification created successfully");
+        } catch (Exception e) {
+            log.error("Error creating care plan notification", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error creating care plan notification");
         }
     }
 
@@ -126,6 +224,194 @@ public class NotificationController {
                 .collect(Collectors.toList());
         
         return ResponseEntity.ok(notificationDtos);
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<List<NotificationDto>> getMyNotifications(
+            @RequestParam(defaultValue = "PATIENT") String userType,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        if (authorization == null || authorization.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String token = authorization.replace("Bearer ", "");
+        if (!notificationService.validateUserToken(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String username = notificationService.extractUsernameFromToken(token);
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        // Also try to get userId from patient service (it may be the same as username or an ObjectId)
+        String userId = username; // Default to username
+        try {
+            // Try to resolve userId from patient service using the username
+            var patientProfile = patientServiceClient.getPatientById(username, token);
+            if (patientProfile != null) {
+                // Try to extract id from profile
+                if (patientProfile instanceof java.util.Map) {
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> profile = (java.util.Map<String, Object>) patientProfile;
+                    if (profile.get("id") != null) {
+                        userId = (String) profile.get("id");
+                    } else if (profile.get("_id") != null) {
+                        userId = (String) profile.get("_id");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // If patient service fails, use username as userId fallback
+            log.debug("Could not resolve userId from patient service, using username: {}", username);
+        }
+
+        List<Notification> notifications = notificationService.getUserNotificationsByUsernameOrId(username, userId, userType);
+        List<NotificationDto> notificationDtos = notifications.stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(notificationDtos);
+    }
+
+    @GetMapping("/me/unread")
+    public ResponseEntity<List<NotificationDto>> getMyUnreadNotifications(
+            @RequestParam(defaultValue = "PATIENT") String userType,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        if (authorization == null || authorization.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String token = authorization.replace("Bearer ", "");
+        if (!notificationService.validateUserToken(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String username = notificationService.extractUsernameFromToken(token);
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        // Also try to get userId from patient service (it may be the same as username or an ObjectId)
+        String userId = username; // Default to username
+        try {
+            // Try to resolve userId from patient service using the username
+            var patientProfile = patientServiceClient.getPatientById(username, token);
+            if (patientProfile != null) {
+                // Try to extract id from profile
+                if (patientProfile instanceof java.util.Map) {
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> profile = (java.util.Map<String, Object>) patientProfile;
+                    if (profile.get("id") != null) {
+                        userId = (String) profile.get("id");
+                    } else if (profile.get("_id") != null) {
+                        userId = (String) profile.get("_id");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // If patient service fails, use username as userId fallback
+            log.debug("Could not resolve userId from patient service, using username: {}", username);
+        }
+
+        List<Notification> notifications = notificationService.getUnreadNotificationsByUsernameOrId(username, userId, userType);
+        List<NotificationDto> notificationDtos = notifications.stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(notificationDtos);
+    }
+
+    @GetMapping("/me/unread/count")
+    public ResponseEntity<Long> getMyUnreadCount(
+            @RequestParam(defaultValue = "PATIENT") String userType,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        if (authorization == null || authorization.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String token = authorization.replace("Bearer ", "");
+        if (!notificationService.validateUserToken(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String username = notificationService.extractUsernameFromToken(token);
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        // Also try to get userId from patient service (it may be the same as username or an ObjectId)
+        String userId = username; // Default to username
+        try {
+            // Try to resolve userId from patient service using the username
+            var patientProfile = patientServiceClient.getPatientById(username, token);
+            if (patientProfile != null) {
+                // Try to extract id from profile
+                if (patientProfile instanceof java.util.Map) {
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> profile = (java.util.Map<String, Object>) patientProfile;
+                    if (profile.get("id") != null) {
+                        userId = (String) profile.get("id");
+                    } else if (profile.get("_id") != null) {
+                        userId = (String) profile.get("_id");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // If patient service fails, use username as userId fallback
+            log.debug("Could not resolve userId from patient service, using username: {}", username);
+        }
+
+        Long count = notificationService.getUnreadCountByUsernameOrId(username, userId, userType);
+        return ResponseEntity.ok(count);
+    }
+
+    @PutMapping("/me/read-all")
+    public ResponseEntity<Void> markAllMyAsRead(
+            @RequestParam(defaultValue = "PATIENT") String userType,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        
+        if (authorization == null || authorization.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String token = authorization.replace("Bearer ", "");
+        if (!notificationService.validateUserToken(token)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String username = notificationService.extractUsernameFromToken(token);
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        
+        // Also try to get userId from patient service (it may be the same as username or an ObjectId)
+        String userId = username; // Default to username
+        try {
+            // Try to resolve userId from patient service using the username
+            var patientProfile = patientServiceClient.getPatientById(username, token);
+            if (patientProfile != null) {
+                // Try to extract id from profile
+                if (patientProfile instanceof java.util.Map) {
+                    @SuppressWarnings("unchecked")
+                    java.util.Map<String, Object> profile = (java.util.Map<String, Object>) patientProfile;
+                    if (profile.get("id") != null) {
+                        userId = (String) profile.get("id");
+                    } else if (profile.get("_id") != null) {
+                        userId = (String) profile.get("_id");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // If patient service fails, use username as userId fallback
+            log.debug("Could not resolve userId from patient service, using username: {}", username);
+        }
+
+        notificationService.markAllAsReadByUsernameOrId(username, userId, userType);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/user/{userId}")
@@ -281,6 +567,42 @@ public class NotificationController {
         notificationService.deleteReadNotifications(userId, userType);
         log.info("Deleted read notifications for user {} of type {}", userId, userType);
         return ResponseEntity.noContent().build();
+    }
+
+    // DEBUG: List all collections in the database
+
+    @GetMapping("/debug/collections")
+    public ResponseEntity<?> debugCollections() {
+        try {
+            var db = mongoTemplate.getDb();
+            String dbName = db.getName();
+            var collectionNames = mongoTemplate.getCollectionNames();
+
+            java.util.Map<String, Object> result = new java.util.LinkedHashMap<>();
+            result.put("database", dbName);
+
+            java.util.List<java.util.Map<String, Object>> collections = new java.util.ArrayList<>();
+            for (String collName : collectionNames) {
+                java.util.Map<String, Object> collInfo = new java.util.LinkedHashMap<>();
+                collInfo.put("name", collName);
+                collInfo.put("documentCount", mongoTemplate.getCollection(collName).countDocuments());
+                collections.add(collInfo);
+            }
+            result.put("collections", collections);
+
+            // Also show what collection the Notification entity maps to
+            org.springframework.data.mongodb.core.mapping.MongoPersistentEntity<?> persistentEntity =
+                mongoTemplate.getConverter().getMappingContext().getPersistentEntity(Notification.class);
+            if (persistentEntity != null) {
+                result.put("notificationEntityCollection", persistentEntity.getCollection());
+            }
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Error listing collections", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error: " + e.getMessage());
+        }
     }
 
     private NotificationDto convertToDto(Notification notification) {

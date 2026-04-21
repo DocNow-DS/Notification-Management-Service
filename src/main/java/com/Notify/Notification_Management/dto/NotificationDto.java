@@ -86,4 +86,8 @@ public class NotificationDto {
     public Boolean getIsRead() {
         return isRead;
     }
+
+    public void setIsRead(Boolean isRead) {
+        this.isRead = isRead;
+    }
 }
