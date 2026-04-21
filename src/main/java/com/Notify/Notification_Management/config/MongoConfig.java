@@ -10,12 +10,12 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 @Configuration
 public class MongoConfig {
  
-    @Value("${spring.data.mongodb.uri:mongodb+srv://lasannavodya:DelLCS5EiIBT3jFu@course.uf2pi.mongodb.net/HealthCare?retryWrites=true&w=majority&appName=Course}")
+    @Value("${spring.data.mongodb.uri:mongodb+srv://dbuser:dbuser2026@test.ubtlnvl.mongodb.net/client?appName=TEST}")
     private String mongoUri;
  
     @Bean
     @Primary
     public MongoTemplate mongoTemplate() {
-        return new MongoTemplate(MongoClients.create(mongoUri), "HealthCare");
+        return new MongoTemplate(MongoClients.create(mongoUri), "healthcare");
     }
 }

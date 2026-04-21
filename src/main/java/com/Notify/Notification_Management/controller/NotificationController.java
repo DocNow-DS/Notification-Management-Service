@@ -210,19 +210,28 @@ public class NotificationController {
         }
     }
 
+    /**
+     * Get all notifications. Requires authorization token.
+     * If token is valid, returns a list of notifications in DTO format.
+     * If token is invalid, returns a 401 status.
+     */
     @GetMapping
     public ResponseEntity<List<NotificationDto>> getAllNotifications(
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         
+        // Validate token if present
         if (authorization != null && !notificationService.validateUserToken(authorization.replace("Bearer ", ""))) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
+        // Get all notifications
         List<Notification> notifications = notificationService.getAllNotifications();
+        // Convert to DTO format
         List<NotificationDto> notificationDtos = notifications.stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
         
+        // Return DTO list
         return ResponseEntity.ok(notificationDtos);
     }
 
