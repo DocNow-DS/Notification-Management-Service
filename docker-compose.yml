@@ -10,8 +10,7 @@ services:
       - "8084:8084"
     environment:
       # MongoDB connection (cloud)
-      SPRING_DATA_MONGODB_URI: mongodb+srv://lasannavodya:DelLCS5EiIBT3jFu@course.uf2pi.mongodb.net/HealthCare?retryWrites=true&w=majority&appName=Course
-      SPRING_DATA_MONGODB_DATABASE: HealthCare
+      SPRING_DATA_MONGODB_URI: mongodb+srv://dbuser:dbuser2026@test.ubtlnvl.mongodb.net/client?retryWrites=true&w=majority&connectTimeoutMS=10000&socketTimeoutMS=30000&serverSelectionTimeoutMS=30000&appName=TEST
       
       # Server port
       SERVER_PORT: 8084
